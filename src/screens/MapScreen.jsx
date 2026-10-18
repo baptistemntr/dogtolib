@@ -23,8 +23,24 @@ import {
   Check,
   ExternalLink,
   ChevronRight,
-  Filter
+  Filter,
+  Footprints,
+  Route,
+  LocateFixed,
+  Bike,
+  Car,
+  Loader2
 } from 'lucide-react';
+
+// Position de l'utilisateur : Université Paris Dauphine - PSL (Porte Dauphine)
+export const USER_LOCATION = {
+  lat: 48.8701,
+  lng: 2.2735,
+  name: 'Université Paris Dauphine — PSL',
+  shortName: 'Dauphine PSL',
+  address: 'Place du Maréchal de Lattre de Tassigny, 75016 Paris',
+  district: 'Porte Dauphine • 16e arr.'
+};
 
 export default function MapScreen({ activePet, onOpenToast }) {
   // Favorites persisted in localStorage
@@ -43,10 +59,16 @@ export default function MapScreen({ activePet, onOpenToast }) {
   const [viewMode, setViewMode] = useState('map'); // 'map' | 'list'
   const [copiedAddress, setCopiedAddress] = useState(false);
 
+  const [activeRoute, setActiveRoute] = useState(null);
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [routeMode, setRouteMode] = useState('foot'); // 'foot' | 'bike' | 'car'
+
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersGroupRef = useRef(null);
   const markersMapRef = useRef({});
+  const routeLayerRef = useRef(null);
+  const userMarkerRef = useRef(null);
 
   // Sync favorites to localStorage
   useEffect(() => {
@@ -57,13 +79,18 @@ export default function MapScreen({ activePet, onOpenToast }) {
     }
   }, [favorites]);
 
-  // Expose direct place selector for Leaflet popups and markers
+  // Expose direct place selector & route calculator for Leaflet popups and markers
   useEffect(() => {
     window.__dogtolibShowDetail = (id) => {
       setSelectedPlaceId(id);
     };
+    window.__dogtolibCalculateRoute = (id) => {
+      const p = PARIS_PLACES.find(item => item.id === id);
+      if (p) calculateRoute(p, 'foot');
+    };
     return () => {
       delete window.__dogtolibShowDetail;
+      delete window.__dogtolibCalculateRoute;
     };
   }, []);
 
@@ -148,6 +175,53 @@ export default function MapScreen({ activePet, onOpenToast }) {
       L.control.attribution({ position: 'bottomleft', prefix: false })
         .addAttribution('© OSM & Dogtolib')
         .addTo(map);
+
+      // Route Polyline Layer Group
+      const routeGroup = L.layerGroup().addTo(map);
+      routeLayerRef.current = routeGroup;
+
+      // User Location Marker (Université Paris Dauphine - PSL, Porte Dauphine)
+      const userPuckIcon = L.divIcon({
+        className: 'custom-user-puck-marker',
+        html: `
+          <div class="user-location-puck" title="Votre position : ${USER_LOCATION.name}">
+            <div class="user-location-pulse"></div>
+            <div class="user-location-dot"></div>
+          </div>
+        `,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        popupAnchor: [0, -14]
+      });
+
+      const userMarker = L.marker([USER_LOCATION.lat, USER_LOCATION.lng], {
+        icon: userPuckIcon,
+        zIndexOffset: 1200
+      });
+
+      const userPopup = L.popup({
+        className: 'dogtolib-popup',
+        closeButton: true,
+        offset: [0, -10],
+        maxWidth: 240
+      }).setContent(`
+        <div style="padding: 10px 12px; font-family: system-ui, -apple-system, sans-serif; cursor: default;">
+          <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 4px;">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #2563EB;"></span>
+            <span style="font-size: 10px; font-weight: 800; color: #2563EB; text-transform: uppercase; letter-spacing: 0.5px;">Ma localisation</span>
+          </div>
+          <div style="font-weight: 800; font-size: 13px; color: #0F4C5C; line-height: 1.25;">
+            ${USER_LOCATION.name}
+          </div>
+          <div style="font-size: 11px; color: #64748B; margin-top: 3px;">
+            📍 ${USER_LOCATION.district} • ${USER_LOCATION.address}
+          </div>
+        </div>
+      `);
+
+      userMarker.bindPopup(userPopup);
+      userMarker.addTo(map);
+      userMarkerRef.current = userMarker;
 
       const markersGroup = L.layerGroup().addTo(map);
       markersGroupRef.current = markersGroup;
@@ -242,12 +316,19 @@ export default function MapScreen({ activePet, onOpenToast }) {
             </div>
             <div style="display: flex; gap: 6px;">
               <button
+                id="leaflet-route-btn-${place.id}"
+                onclick="window.__dogtolibCalculateRoute && window.__dogtolibCalculateRoute('${place.id}')"
+                style="flex: 1.3; background: #0F4C5C; color: #ffffff; border: none; padding: 7px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;"
+              >
+                <span>🧭 Itinéraire</span>
+                <span>➔</span>
+              </button>
+              <button
                 id="leaflet-preview-btn-${place.id}"
                 onclick="window.__dogtolibShowDetail && window.__dogtolibShowDetail('${place.id}')"
-                style="flex: 1; background: #0F4C5C; color: #ffffff; border: none; padding: 7px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;"
+                style="flex: 1; background: #F1F5F9; color: #0F4C5C; border: 1px solid #CBD5E1; padding: 7px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center;"
               >
-                <span>Fiche complète & itinéraire</span>
-                <span>➔</span>
+                <span>Détails</span>
               </button>
             </div>
           </div>
@@ -324,6 +405,147 @@ export default function MapScreen({ activePet, onOpenToast }) {
     setSelectedPlaceId(null);
     if (mapInstanceRef.current) {
       mapInstanceRef.current.closePopup();
+    }
+  };
+
+  // Clear active route
+  const handleClearRoute = () => {
+    if (routeLayerRef.current) {
+      routeLayerRef.current.clearLayers();
+    }
+    setActiveRoute(null);
+    if (onOpenToast) {
+      onOpenToast("Itinéraire terminé");
+    }
+  };
+
+  // Center on user location (Université Paris Dauphine - PSL)
+  const handleCenterOnUser = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setView([USER_LOCATION.lat, USER_LOCATION.lng], 15, { animate: true });
+      if (userMarkerRef.current) {
+        userMarkerRef.current.openPopup();
+      }
+    }
+  };
+
+  // Calculate in-app route from Dauphine to destination
+  const calculateRoute = async (place, mode = 'foot') => {
+    if (!place) return;
+    setIsCalculatingRoute(true);
+    setRouteMode(mode);
+    setViewMode('map');
+
+    try {
+      const startLng = USER_LOCATION.lng;
+      const startLat = USER_LOCATION.lat;
+      const destLng = place.lng;
+      const destLat = place.lat;
+
+      const profile = mode === 'car' ? 'driving' : mode === 'bike' ? 'bike' : 'foot';
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+
+      let coords = [];
+      let distanceMeters = 0;
+      let durationSeconds = 0;
+
+      try {
+        const res = await fetch(
+          `https://router.project-osrm.org/route/v1/${profile}/${startLng},${startLat};${destLng},${destLat}?overview=full&geometries=geojson`,
+          { signal: controller.signal }
+        );
+        clearTimeout(timeout);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.routes && data.routes.length > 0) {
+            const route = data.routes[0];
+            coords = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+            distanceMeters = route.distance;
+            durationSeconds = route.duration;
+          }
+        }
+      } catch (e) {
+        console.warn('OSRM route fetch failed or timed out, fallback to geodesic', e);
+      }
+
+      // Fallback if offline or API delay
+      if (!coords || coords.length === 0) {
+        const rad = Math.PI / 180;
+        const dLat = (destLat - startLat) * rad;
+        const dLon = (destLng - startLng) * rad;
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(startLat * rad) * Math.cos(destLat * rad) * Math.sin(dLon / 2) ** 2;
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const directMeters = 6371000 * c * 1.35; // 1.35x street detour factor
+        distanceMeters = directMeters;
+        durationSeconds = (directMeters / 1000) / (mode === 'car' ? 25 : mode === 'bike' ? 15 : 4.5) * 3600;
+        coords = [
+          [startLat, startLng],
+          [(startLat * 2 + destLat) / 3, (startLng * 2 + destLng) / 3],
+          [(startLat + destLat * 2) / 3, (startLng + destLng * 2) / 3],
+          [destLat, destLng]
+        ];
+      }
+
+      const distanceKm = (distanceMeters / 1000).toFixed(1).replace('.', ',');
+      const durationMin = Math.max(1, Math.round(durationSeconds / 60));
+
+      const newRoute = {
+        destination: place,
+        distanceKm,
+        durationMin,
+        distanceMeters,
+        coordinates: coords,
+        mode
+      };
+
+      setActiveRoute(newRoute);
+      setSelectedPlaceId(null);
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.closePopup();
+      }
+
+      // Render polyline on Leaflet
+      if (mapInstanceRef.current && routeLayerRef.current) {
+        routeLayerRef.current.clearLayers();
+
+        // 1. Contrast white glow border
+        L.polyline(coords, {
+          color: '#ffffff',
+          weight: 9,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }).addTo(routeLayerRef.current);
+
+        // 2. Main route path
+        L.polyline(coords, {
+          color: mode === 'foot' ? '#0F4C5C' : mode === 'bike' ? '#059669' : '#2563EB',
+          weight: 5,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round',
+          dashArray: mode === 'foot' ? '2, 8' : null
+        }).addTo(routeLayerRef.current);
+
+        // Fit bounds with comfortable padding
+        const bounds = L.latLngBounds(coords);
+        mapInstanceRef.current.fitBounds(bounds, {
+          paddingTopLeft: [70, 40],
+          paddingBottomRight: [40, 200],
+          maxZoom: 16,
+          animate: true
+        });
+      }
+
+      if (onOpenToast) {
+        onOpenToast(`Itinéraire : ${durationMin} min depuis Dauphine (${distanceKm} km) 🐾`);
+      }
+    } catch (err) {
+      console.error('Error calculating route:', err);
+      if (onOpenToast) onOpenToast("Impossible de calculer l'itinéraire");
+    } finally {
+      setIsCalculatingRoute(false);
     }
   };
 
@@ -530,7 +752,46 @@ export default function MapScreen({ activePet, onOpenToast }) {
               <Compass className="w-3.5 h-3.5 text-[#0F4C5C]" />
               <span>Paris Centre</span>
             </button>
+
+            {/* My Location: Dauphine PSL */}
+            <button
+              onClick={handleCenterOnUser}
+              title="Me localiser à Dauphine - PSL"
+              className="bg-white/95 backdrop-blur-xs hover:bg-white text-[#2563EB] px-3 py-2 rounded-2xl shadow-md border border-blue-200/80 flex items-center gap-1.5 text-xs font-bold transition-transform active:scale-95"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#2563EB] animate-pulse"></span>
+              <span>Dauphine PSL</span>
+            </button>
           </div>
+
+          {/* ACTIVE ITINERARY TOP HEADER BANNER */}
+          {activeRoute && (
+            <div className="absolute top-2.5 left-2.5 right-2.5 z-[1100] animate-in slide-in-from-top-4 duration-200 pointer-events-auto">
+              <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/90 p-2.5 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-[#2563EB]/10 text-[#2563EB] flex items-center justify-center shrink-0">
+                    <Navigation className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold truncate">
+                      <span>Dauphine (16e)</span>
+                      <span>➔</span>
+                    </div>
+                    <div className="text-xs font-extrabold text-[#0F4C5C] truncate">
+                      {activeRoute.destination.title}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={handleClearRoute}
+                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center shrink-0 transition-colors"
+                  title="Quitter l'itinéraire"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Floating Status Pill */}
           <div className="absolute top-3 right-14 z-20 pointer-events-none">
@@ -658,16 +919,19 @@ export default function MapScreen({ activePet, onOpenToast }) {
 
                   {/* Action buttons */}
                   <div className="grid grid-cols-2 gap-2 pt-1">
-                    {/* Itinéraire */}
-                    <a
-                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedPlace.title + ' ' + selectedPlace.address + ' Paris')}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="py-2.5 px-3 rounded-xl bg-[#0F4C5C] hover:bg-[#16697A] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                    {/* Itinéraire direct */}
+                    <button
+                      onClick={() => calculateRoute(selectedPlace, 'foot')}
+                      disabled={isCalculatingRoute}
+                      className="py-2.5 px-3 rounded-xl bg-[#0F4C5C] hover:bg-[#16697A] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-70"
                     >
-                      <Navigation className="w-3.5 h-3.5" />
-                      <span>Itinéraire</span>
-                    </a>
+                      {isCalculatingRoute ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Navigation className="w-3.5 h-3.5" />
+                      )}
+                      <span>{isCalculatingRoute ? "Calcul..." : "Itinéraire (Dauphine)"}</span>
+                    </button>
 
                     {/* Appeler ou Copier adresse */}
                     {selectedPlace.phone ? (
@@ -689,6 +953,123 @@ export default function MapScreen({ activePet, onOpenToast }) {
                     )}
                   </div>
 
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ACTIVE ROUTE BOTTOM DETAIL CARD */}
+          {activeRoute && !selectedPlace && (
+            <div className="absolute bottom-2 left-2 right-2 z-[1000] animate-in slide-in-from-bottom-5 duration-200 pointer-events-auto">
+              <div className="bg-white rounded-3xl shadow-2xl border border-slate-200/90 p-3.5 flex flex-col gap-3">
+                {/* Transport Mode Switcher */}
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                    <button
+                      onClick={() => calculateRoute(activeRoute.destination, 'foot')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
+                        routeMode === 'foot'
+                          ? 'bg-[#0F4C5C] text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <span>🚶‍♂️ À pied</span>
+                    </button>
+                    <button
+                      onClick={() => calculateRoute(activeRoute.destination, 'bike')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
+                        routeMode === 'bike'
+                          ? 'bg-emerald-700 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <span>🚲 Vélo</span>
+                    </button>
+                    <button
+                      onClick={() => calculateRoute(activeRoute.destination, 'car')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
+                        routeMode === 'car'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <span>🚗 Voiture</span>
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (mapInstanceRef.current && routeLayerRef.current) {
+                        const bounds = L.latLngBounds(activeRoute.coordinates);
+                        mapInstanceRef.current.fitBounds(bounds, {
+                          paddingTopLeft: [70, 40],
+                          paddingBottomRight: [40, 200],
+                          animate: true
+                        });
+                      }
+                    }}
+                    className="text-[11px] text-[#0F4C5C] hover:text-[#16697A] font-bold flex items-center gap-1 bg-slate-100/90 hover:bg-slate-200/70 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                    title="Recentrer sur tout le trajet"
+                  >
+                    <Compass className="w-3 h-3" />
+                    <span>Recentrer</span>
+                  </button>
+                </div>
+
+                {/* Metrics & Thumbnail */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-black text-[#0F4C5C]">
+                        {activeRoute.durationMin} min
+                      </span>
+                      <span className="text-xs font-bold text-slate-500">
+                        ({activeRoute.distanceKm} km)
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                      <span>🐾 ~{Math.round(parseFloat(activeRoute.distanceKm.replace(',', '.')) * 1400).toLocaleString('fr-FR')} pas pour {activePet?.name || 'votre chien'}</span>
+                      <span>•</span>
+                      <span className="text-emerald-700 font-bold">Itinéraire direct</span>
+                    </div>
+                  </div>
+
+                  <div className="w-12 h-12 rounded-2xl overflow-hidden shrink-0 border border-slate-200 shadow-2xs">
+                    <img
+                      src={activeRoute.destination.photo}
+                      alt={activeRoute.destination.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="grid grid-cols-3 gap-2 pt-0.5">
+                  <button
+                    onClick={() => setSelectedPlaceId(activeRoute.destination.id)}
+                    className="py-2.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors border border-slate-200 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-[#E36414]" />
+                    <span>Fiche</span>
+                  </button>
+
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&origin=${USER_LOCATION.lat},${USER_LOCATION.lng}&destination=${encodeURIComponent(activeRoute.destination.title + ' ' + activeRoute.destination.address + ' Paris')}&travelmode=${routeMode === 'car' ? 'driving' : routeMode === 'bike' ? 'bicycling' : 'walking'}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-2.5 px-2 rounded-xl bg-[#0F4C5C] hover:bg-[#16697A] text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>GPS (Plans)</span>
+                  </a>
+
+                  <button
+                    onClick={handleClearRoute}
+                    className="py-2.5 px-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors border border-rose-200 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Quitter</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -796,13 +1177,25 @@ export default function MapScreen({ activePet, onOpenToast }) {
 
                   {/* Bottom Action Bar */}
                   <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
-                    <span className="text-slate-400 truncate max-w-[200px]">
+                    <span className="text-slate-400 truncate max-w-[150px]">
                       {place.address}
                     </span>
-                    <span className="text-[#0F4C5C] font-bold flex items-center gap-0.5 shrink-0 group-hover:translate-x-0.5 transition-transform">
-                      Voir sur la carte
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          calculateRoute(place, 'foot');
+                        }}
+                        className="text-[#2563EB] hover:text-blue-700 font-bold flex items-center gap-1 bg-blue-50 hover:bg-blue-100/80 px-2.5 py-1 rounded-xl transition-colors cursor-pointer"
+                      >
+                        <Navigation className="w-3 h-3" />
+                        <span>Itinéraire</span>
+                      </button>
+                      <span className="text-[#0F4C5C] font-bold flex items-center gap-0.5 shrink-0 group-hover:translate-x-0.5 transition-transform">
+                        Carte
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </span>
+                    </div>
                   </div>
                 </div>
               );

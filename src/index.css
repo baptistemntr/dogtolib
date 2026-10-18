@@ -77,8 +77,57 @@
   border: 1px solid rgba(255, 255, 255, 0.4) !important;
 }
 
+/* User Location Puck (Université Paris Dauphine) */
+.user-location-puck {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
 
+.user-location-pulse {
+  position: absolute;
+  width: 42px;
+  height: 42px;
+  background: rgba(37, 99, 235, 0.28);
+  border-radius: 50%;
+  animation: user-puck-pulse 2s infinite ease-out;
+  pointer-events: none;
+}
 
+.user-location-dot {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  background: #2563EB;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+  transition: transform 0.2s ease;
+}
+
+.user-location-puck:hover .user-location-dot {
+  transform: scale(1.15);
+}
+
+@keyframes user-puck-pulse {
+  0% {
+    transform: scale(0.35);
+    opacity: 0.95;
+  }
+  70% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
 
 @layer base {
   :root {
