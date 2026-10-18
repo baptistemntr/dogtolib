@@ -46,6 +46,7 @@ export default function MapScreen({ activePet, onOpenToast }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersGroupRef = useRef(null);
+  const markersMapRef = useRef({});
 
   // Sync favorites to localStorage
   useEffect(() => {
@@ -55,6 +56,16 @@ export default function MapScreen({ activePet, onOpenToast }) {
       console.warn('Could not save favorites to localStorage', e);
     }
   }, [favorites]);
+
+  // Expose direct place selector for Leaflet popups and markers
+  useEffect(() => {
+    window.__dogtolibShowDetail = (id) => {
+      setSelectedPlaceId(id);
+    };
+    return () => {
+      delete window.__dogtolibShowDetail;
+    };
+  }, []);
 
   const toggleFavorite = (placeId, e) => {
     if (e) e.stopPropagation();
@@ -138,11 +149,6 @@ export default function MapScreen({ activePet, onOpenToast }) {
         .addAttribution('© OSM & Dogtolib')
         .addTo(map);
 
-      // Click on map background to dismiss active place
-      map.on('click', () => {
-        setSelectedPlaceId(null);
-      });
-
       const markersGroup = L.layerGroup().addTo(map);
       markersGroupRef.current = markersGroup;
       mapInstanceRef.current = map;
@@ -172,6 +178,7 @@ export default function MapScreen({ activePet, onOpenToast }) {
     if (!mapInstanceRef.current || !markersGroupRef.current) return;
 
     markersGroupRef.current.clearLayers();
+    markersMapRef.current = {};
 
     filteredPlaces.forEach(place => {
       const isFav = favorites.includes(place.id);
@@ -180,7 +187,7 @@ export default function MapScreen({ activePet, onOpenToast }) {
 
       // Custom HTML Marker Icon
       const iconHtml = `
-        <div class="dogtolib-marker-pin ${isSelected ? 'active' : ''}" style="width: 36px; height: 44px; position: relative;">
+        <div class="dogtolib-marker-pin ${isSelected ? 'active' : ''}" onclick="window.__dogtolibShowDetail && window.__dogtolibShowDetail('${place.id}')" style="width: 36px; height: 44px; position: relative; cursor: pointer;">
           <svg viewBox="0 0 38 46" width="36" height="44" style="filter: drop-shadow(0 3px 5px rgba(0,0,0,0.3));">
             <path d="M19 0C8.5 0 0 8.5 0 19C0 29.5 19 46 19 46C19 46 38 29.5 38 19C38 8.5 29.5 0 19 0Z" fill="${cat.color}" />
             <circle cx="19" cy="18" r="13" fill="#ffffff" />
@@ -203,28 +210,120 @@ export default function MapScreen({ activePet, onOpenToast }) {
         html: iconHtml,
         iconSize: [36, 44],
         iconAnchor: [18, 44],
-        popupAnchor: [0, -40]
+        popupAnchor: [0, -42]
       });
 
-      const marker = L.marker([place.lat, place.lng], { icon: customIcon });
+      const marker = L.marker([place.lat, place.lng], {
+        icon: customIcon,
+        riseOnHover: true
+      });
 
+      // Custom Leaflet Popup preview aperçu
+      const popupHtml = `
+        <div style="width: 220px; font-family: system-ui, -apple-system, sans-serif; cursor: default;">
+          <div style="position: relative; height: 95px; width: 100%; overflow: hidden; background: #0F4C5C;">
+            <img src="${place.photo}" alt="${place.title}" style="width: 100%; height: 100%; object-fit: cover;" />
+            <div style="position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 60%);"></div>
+            <div style="position: absolute; top: 6px; left: 6px; background: ${cat.color}; color: #ffffff; font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 999px; box-shadow: 0 1px 3px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 3px;">
+              <span>${cat.emoji}</span>
+              <span>${cat.label}</span>
+            </div>
+            <div style="position: absolute; bottom: 5px; right: 6px; background: rgba(0,0,0,0.7); color: #FBBF24; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; display: flex; align-items: center; gap: 2px;">
+              <span>★</span>
+              <span>${place.rating}</span>
+            </div>
+          </div>
+          <div style="padding: 10px 12px 12px 12px;">
+            <h4 style="margin: 0 0 2px 0; font-size: 13px; font-weight: 800; color: #0F4C5C; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              ${place.title}
+            </h4>
+            <div style="font-size: 11px; color: #64748B; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              📍 ${place.neighborhood} • ${place.district}
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button
+                id="leaflet-preview-btn-${place.id}"
+                onclick="window.__dogtolibShowDetail && window.__dogtolibShowDetail('${place.id}')"
+                style="flex: 1; background: #0F4C5C; color: #ffffff; border: none; padding: 7px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;"
+              >
+                <span>Fiche complète & itinéraire</span>
+                <span>➔</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const popup = L.popup({
+        className: 'dogtolib-popup',
+        closeButton: true,
+        autoPan: true,
+        offset: [0, -32],
+        maxWidth: 240,
+        minWidth: 220
+      }).setContent(popupHtml);
+
+      marker.bindPopup(popup);
+
+      // Marker click handler
       marker.on('click', (e) => {
-        L.DomEvent.stopPropagation(e);
+        if (e && e.originalEvent) {
+          e.originalEvent._markerClicked = true;
+          L.DomEvent.stopPropagation(e.originalEvent);
+        }
         setSelectedPlaceId(place.id);
         if (mapInstanceRef.current) {
-          mapInstanceRef.current.setView([place.lat, place.lng], 14, { animate: true });
+          mapInstanceRef.current.panTo([place.lat, place.lng], { animate: true });
+        }
+      });
+
+      marker.on('popupopen', () => {
+        setSelectedPlaceId(place.id);
+        const btn = document.getElementById(`leaflet-preview-btn-${place.id}`);
+        if (btn) {
+          btn.onclick = (ev) => {
+            if (ev) ev.stopPropagation();
+            setSelectedPlaceId(place.id);
+          };
         }
       });
 
       marker.addTo(markersGroupRef.current);
+      markersMapRef.current[place.id] = marker;
     });
-  }, [filteredPlaces, selectedPlaceId, favorites]);
+  }, [filteredPlaces, favorites]);
+
+  // Synchronize active marker popup and active pin styling
+  useEffect(() => {
+    document.querySelectorAll('.dogtolib-marker-pin').forEach(el => {
+      el.classList.remove('active');
+    });
+
+    if (selectedPlaceId && markersMapRef.current[selectedPlaceId]) {
+      const marker = markersMapRef.current[selectedPlaceId];
+      const pinEl = marker.getElement()?.querySelector('.dogtolib-marker-pin');
+      if (pinEl) pinEl.classList.add('active');
+
+      if (!marker.isPopupOpen()) {
+        marker.openPopup();
+      }
+    }
+  }, [selectedPlaceId]);
 
   // Recenter Paris
   const handleRecenter = () => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.setView([48.8566, 2.3522], 12, { animate: true });
+      mapInstanceRef.current.closePopup();
       setSelectedPlaceId(null);
+    }
+  };
+
+  // Close detail sheet & popup
+  const handleCloseDetail = () => {
+    setSelectedPlaceId(null);
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.closePopup();
     }
   };
 
@@ -234,6 +333,11 @@ export default function MapScreen({ activePet, onOpenToast }) {
     setViewMode('map');
     if (mapInstanceRef.current) {
       mapInstanceRef.current.setView([place.lat, place.lng], 15, { animate: true });
+      setTimeout(() => {
+        if (markersMapRef.current[place.id]) {
+          markersMapRef.current[place.id].openPopup();
+        }
+      }, 350);
     }
   };
 
@@ -456,7 +560,7 @@ export default function MapScreen({ activePet, onOpenToast }) {
 
           {/* BOTTOM SHEET DETAIL CARD (when a place is selected on the map) */}
           {selectedPlace && (
-            <div className="absolute bottom-2 left-2 right-2 z-30 animate-in slide-in-from-bottom-5 duration-200 pointer-events-auto">
+            <div className="absolute bottom-2 left-2 right-2 z-[1000] animate-in slide-in-from-bottom-5 duration-200 pointer-events-auto">
               <div className="bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col max-h-[380px]">
 
                 {/* Header Image & Badges */}
@@ -479,7 +583,7 @@ export default function MapScreen({ activePet, onOpenToast }) {
 
                   {/* Close button */}
                   <button
-                    onClick={() => setSelectedPlaceId(null)}
+                    onClick={handleCloseDetail}
                     className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-black/40 backdrop-blur-xs text-white hover:bg-black/60 flex items-center justify-center transition-all"
                   >
                     <X className="w-4 h-4" />
