@@ -7,7 +7,9 @@ import HomeScreen from './screens/HomeScreen';
 import PassportScreen from './screens/PassportScreen';
 import TriageScreen from './screens/TriageScreen';
 import MapScreen from './screens/MapScreen';
-import PlaceholderScreen from './screens/PlaceholderScreen';
+import AppointmentsScreen from './screens/AppointmentsScreen';
+import EmergenciesScreen from './screens/EmergenciesScreen';
+import ProfileScreen from './screens/ProfileScreen';
 import { initialData } from './data/mockData';
 import { CheckCircle2, X } from 'lucide-react';
 
@@ -77,6 +79,31 @@ export default function App() {
     setCurrentScreen('passport');
   };
 
+  // Direct booking from AppointmentsScreen
+  const handleDirectBookAppointment = ({ title, appointment }) => {
+    const newTimelineEvent = {
+      id: Date.now(),
+      date: `${appointment.date} à ${appointment.time}`,
+      title: `Rendez-vous pris : ${title}`,
+      type: "checkup",
+      details: `Consultation chez ${appointment.clinic} (${appointment.practitioner}). Motif : ${appointment.reason}. Adresse : ${appointment.address}.`
+    };
+
+    setAppData(prev => ({
+      ...prev,
+      pets: prev.pets.map(p => {
+        if (p.id === activePetId) {
+          return {
+            ...p,
+            nextAppointment: appointment,
+            timeline: [newTimelineEvent, ...p.timeline]
+          };
+        }
+        return p;
+      })
+    }));
+  };
+
   // Save report to passport without booking
   const handleSaveToPassport = ({ symptom, duration, resultTitle, date }) => {
     const newTimelineEvent = {
@@ -117,8 +144,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Pet Selector (visible on Home and Passport) */}
-      {(currentScreen === 'home' || currentScreen === 'passport') && (
+      {/* Pet Selector (visible on Home, Passport, Appointments) */}
+      {(currentScreen === 'home' || currentScreen === 'passport' || currentScreen === 'appointments') && (
         <PetSelector
           pets={appData.pets}
           activePetId={activePetId}
@@ -160,12 +187,31 @@ export default function App() {
           />
         )}
 
-        {['appointments', 'emergencies', 'profile'].includes(currentScreen) && (
-          <PlaceholderScreen
-            screenId={currentScreen}
-            onNavigate={(screen) => setCurrentScreen(screen)}
+        {currentScreen === 'appointments' && (
+          <AppointmentsScreen
             activePet={activePet}
             professionals={appData.professionals}
+            onBookAppointment={handleDirectBookAppointment}
+            onNavigate={(screen) => setCurrentScreen(screen)}
+            onOpenToast={showToast}
+          />
+        )}
+
+        {currentScreen === 'emergencies' && (
+          <EmergenciesScreen
+            activePet={activePet}
+            onNavigate={(screen) => setCurrentScreen(screen)}
+            onOpenToast={showToast}
+          />
+        )}
+
+        {currentScreen === 'profile' && (
+          <ProfileScreen
+            pets={appData.pets}
+            activePetId={activePetId}
+            onSelectPet={handleSelectPet}
+            onNavigate={(screen) => setCurrentScreen(screen)}
+            onOpenToast={showToast}
           />
         )}
       </div>
