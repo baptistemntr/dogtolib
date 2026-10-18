@@ -1,11 +1,12 @@
 import React from 'react';
-import { Home, FileHeart, Calendar, AlertCircle, User } from 'lucide-react';
+import { Home, FileHeart, Calendar, AlertCircle, User, MapPin } from 'lucide-react';
 
 export default function BottomNav({ currentScreen, onNavigate }) {
   const navItems = [
     { id: 'home', label: 'Accueil', icon: Home },
+    { id: 'map', label: 'Carte', icon: MapPin },
     { id: 'passport', label: 'Passeport', icon: FileHeart },
-    { id: 'appointments', label: 'Rendez-vous', icon: Calendar },
+    { id: 'appointments', label: 'RDV', icon: Calendar },
     { id: 'emergencies', label: 'Urgences', icon: AlertCircle, urgent: true },
     { id: 'profile', label: 'Profil', icon: User },
   ];
@@ -21,7 +22,7 @@ export default function BottomNav({ currentScreen, onNavigate }) {
           <button
             key={item.id}
             onClick={() => onNavigate(item.id)}
-            className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all duration-150 relative min-w-[58px] ${
+            className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition-all duration-150 relative min-w-[50px] ${
               isActive
                 ? isUrgent
                   ? 'text-[#D90429]'

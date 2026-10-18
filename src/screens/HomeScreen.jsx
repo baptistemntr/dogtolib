@@ -11,7 +11,8 @@ import {
   Activity,
   FileCheck,
   CheckCircle2,
-  HelpCircle
+  HelpCircle,
+  MapPin
 } from 'lucide-react';
 import { SpeciesBadge, SpeciesIcon } from '../components/SpeciesIcon';
 
@@ -228,6 +229,34 @@ export default function HomeScreen({ pet, onStartTriage, onNavigate, onOpenPassp
           </div>
         </div>
         <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+      </div>
+
+      {/* Carte des spots canins à Paris (Nouveau) */}
+      <div 
+        onClick={() => onNavigate('map')}
+        className="bg-gradient-to-br from-emerald-50 to-teal-50/50 rounded-3xl p-4 border border-emerald-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-emerald-300 transition-all group"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+            <MapPin className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full">
+                Nouveau • Paris Canin
+              </span>
+            </div>
+            <h3 className="text-xs font-extrabold text-slate-900 mt-0.5">
+              Carte des spots & adresses
+            </h3>
+            <p className="text-[11px] text-slate-600">
+              Parcs, pupuccinos, boutiques & toiletteurs
+            </p>
+          </div>
+        </div>
+        <div className="w-7 h-7 rounded-full bg-emerald-100/80 group-hover:bg-emerald-200 text-emerald-800 flex items-center justify-center transition-colors">
+          <ChevronRight className="w-4 h-4" />
+        </div>
       </div>
 
       {/* Conseil de prévention personnalisé par espèce */}

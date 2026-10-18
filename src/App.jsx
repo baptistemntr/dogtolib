@@ -6,13 +6,14 @@ import QrShareModal from './components/QrShareModal';
 import HomeScreen from './screens/HomeScreen';
 import PassportScreen from './screens/PassportScreen';
 import TriageScreen from './screens/TriageScreen';
+import MapScreen from './screens/MapScreen';
 import PlaceholderScreen from './screens/PlaceholderScreen';
 import { initialData } from './data/mockData';
 import { CheckCircle2, X } from 'lucide-react';
 
 export default function App() {
   const [appData, setAppData] = useState(initialData);
-  const [currentScreen, setCurrentScreen] = useState('home'); // 'home' | 'passport' | 'triage' | 'appointments' | 'emergencies' | 'profile'
+  const [currentScreen, setCurrentScreen] = useState('home'); // 'home' | 'map' | 'passport' | 'triage' | 'appointments' | 'emergencies' | 'profile'
   const [activePetId, setActivePetId] = useState(initialData.activePetId);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
@@ -133,6 +134,13 @@ export default function App() {
             onStartTriage={handleStartTriage}
             onNavigate={(screen) => setCurrentScreen(screen)}
             onOpenPassport={() => setCurrentScreen('passport')}
+          />
+        )}
+
+        {currentScreen === 'map' && (
+          <MapScreen
+            activePet={activePet}
+            onOpenToast={showToast}
           />
         )}
 
